@@ -44,7 +44,78 @@ namespace RedLock
 			redisCaches = CreateRedisCaches(redisEndPoints.ToArray());
 		}
 
-		private static IList<RedisConnection> CreateRedisCaches(ICollection<RedisLockEndPoint> redisEndPoints)
+	    public RedisLockFactory(params ConfigurationOptions[] options)
+	    {
+	        redisCaches = CreateRedisCaches(options.ToArray());
+        }
+
+	    public RedisLockFactory(params IConnectionMultiplexer[] multiplexers)
+	    {
+	        redisCaches = CreateRedisCaches(multiplexers.ToArray());
+	    }
+
+	    private static void RegisterLogDelegates(RedisConnection redisConnection)
+	    {
+	        redisConnection.ConnectionMultiplexer.ConnectionFailed += (sender, args) =>
+	        {
+	            Logger.Debug(() => $"ConnectionFailed: {args.EndPoint.GetFriendlyName()} ConnectionType: {args.ConnectionType} FailureType: {args.FailureType}");
+	        };
+
+	        redisConnection.ConnectionMultiplexer.ConnectionRestored += (sender, args) =>
+	        {
+	            Logger.Debug(() => $"ConnectionRestored: {args.EndPoint.GetFriendlyName()} ConnectionType: {args.ConnectionType} FailureType: {args.FailureType}");
+	        };
+
+	        redisConnection.ConnectionMultiplexer.ConfigurationChanged += (sender, args) =>
+	        {
+	            Logger.Debug(() => $"ConfigurationChanged: {args.EndPoint.GetFriendlyName()}");
+	        };
+
+	        redisConnection.ConnectionMultiplexer.ConfigurationChangedBroadcast += (sender, args) =>
+	        {
+	            Logger.Debug(() => $"ConfigurationChangedBroadcast: {args.EndPoint.GetFriendlyName()}");
+	        };
+        }
+
+	    private static IList<RedisConnection> CreateRedisCaches(ICollection<IConnectionMultiplexer> multiplexers)
+	    {
+	        if (!multiplexers.Any())
+	        {
+	            throw new ArgumentException("No endpoints specified");
+	        }
+
+	        var caches = new List<RedisConnection>(multiplexers.Count);
+
+	        foreach (var multiplexer in multiplexers)
+	        {
+	            var redisConnection = new RedisConnection
+	            {
+	                ConnectionMultiplexer = multiplexer,
+	                RedisDatabase = DefaultRedisDatabase,
+	                RedisKeyFormat = RedisLock.DefaultRedisKeyFormat
+	            };
+
+	            RegisterLogDelegates(redisConnection);
+
+	            caches.Add(redisConnection);
+	        }
+
+	        return caches;
+	    }
+
+        private static IList<RedisConnection> CreateRedisCaches(ICollection<ConfigurationOptions> configurationOptions)
+	    {
+	        if (!configurationOptions.Any())
+	        {
+	            throw new ArgumentException("No endpoints specified");
+	        }
+
+            var multiplexers = configurationOptions.Select(config => (IConnectionMultiplexer)ConnectionMultiplexer.Connect(config)).ToList();
+
+	        return CreateRedisCaches(multiplexers);
+	    }
+
+	    private static IList<RedisConnection> CreateRedisCaches(ICollection<RedisLockEndPoint> redisEndPoints)
 		{
 			if (!redisEndPoints.Any())
 			{
@@ -76,27 +147,9 @@ namespace RedLock
 					RedisKeyFormat = string.IsNullOrEmpty(endPoint.RedisKeyFormat) ? RedisLock.DefaultRedisKeyFormat : endPoint.RedisKeyFormat
 				};
 
-				redisConnection.ConnectionMultiplexer.ConnectionFailed += (sender, args) =>
-				{
-					Logger.Debug(() => $"ConnectionFailed: {args.EndPoint.GetFriendlyName()} ConnectionType: {args.ConnectionType} FailureType: {args.FailureType}");
-				};
+			    RegisterLogDelegates(redisConnection);
 
-				redisConnection.ConnectionMultiplexer.ConnectionRestored += (sender, args) =>
-				{
-					Logger.Debug(() => $"ConnectionRestored: {args.EndPoint.GetFriendlyName()} ConnectionType: {args.ConnectionType} FailureType: {args.FailureType}");
-				};
-
-				redisConnection.ConnectionMultiplexer.ConfigurationChanged += (sender, args) =>
-				{
-					Logger.Debug(() => $"ConfigurationChanged: {args.EndPoint.GetFriendlyName()}");
-				};
-
-				redisConnection.ConnectionMultiplexer.ConfigurationChangedBroadcast += (sender, args) =>
-				{
-					Logger.Debug(() => $"ConfigurationChangedBroadcast: {args.EndPoint.GetFriendlyName()}");
-				};
-
-				caches.Add(redisConnection);
+                caches.Add(redisConnection);
 			}
 
 			return caches;

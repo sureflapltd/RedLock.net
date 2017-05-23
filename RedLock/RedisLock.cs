@@ -504,7 +504,7 @@ namespace RedLock
 			return string.Format(redisKeyFormat, resource);
 		}
 
-		internal static string GetHost(ConnectionMultiplexer cache)
+		internal static string GetHost(IConnectionMultiplexer cache)
 		{
 			var result = new StringBuilder();
 
