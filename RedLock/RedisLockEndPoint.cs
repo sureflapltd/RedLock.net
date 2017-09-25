@@ -15,14 +15,8 @@ namespace RedLock
 		/// The endpoint for the redis connection.
 		/// </summary>
 		public EndPoint EndPoint {
-			get
-			{
-				return EndPoints.FirstOrDefault();
-			}
-			set
-			{
-				EndPoints = new List<EndPoint> {value};
-			}
+			get => EndPoints.FirstOrDefault();
+		    set => EndPoints = new List<EndPoint> {value};
 		}
 
 		/// <summary>
